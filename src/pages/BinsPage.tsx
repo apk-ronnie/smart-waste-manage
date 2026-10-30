@@ -9,9 +9,15 @@ import {
   RotateCcw,
   CheckCircle2,
   X,
+  LayoutGrid,
+  Camera,
+  Table as TableIcon,
 } from 'lucide-react';
 import { DashboardLayout } from '../components/DashboardLayout.tsx';
 import { BinCard, BinData } from '../components/BinCard.tsx';
+import { CampusZoneVisual } from '../components/visuals/CampusZoneVisual.tsx';
+import { SmartBinVisual } from '../components/visuals/SmartBinVisual.tsx';
+import { getStatusConfig } from '../utils/theme.ts';
 import api from '../services/api.ts';
 
 export const BinsPage: React.FC = () => {
@@ -23,6 +29,7 @@ export const BinsPage: React.FC = () => {
   const [autoSimulate, setAutoSimulate] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [displayMode, setDisplayMode] = useState<'cards' | 'camera_grid' | 'table'>('cards');
 
   // New bin form state
   const [newBinName, setNewBinName] = useState('');
@@ -156,14 +163,45 @@ export const BinsPage: React.FC = () => {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-white tracking-tight">
-              Dustbin Fleet
+              Dustbin Fleet Management
             </h1>
             <p className="text-xs text-slate-400 mt-0.5">
-              Live fill levels, status filtering, and IoT sensor simulation.
+              Live fill telemetry, visual cross-sections, camera audit snapshots, and IoT simulation.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Display Mode Switcher */}
+            <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-800">
+              <button
+                onClick={() => setDisplayMode('cards')}
+                className={`p-1.5 rounded text-xs font-medium transition-colors cursor-pointer ${
+                  displayMode === 'cards' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Hardware Grid View"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setDisplayMode('camera_grid')}
+                className={`p-1.5 rounded text-xs font-medium transition-colors cursor-pointer ${
+                  displayMode === 'camera_grid' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Camera Feed View"
+              >
+                <Camera className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setDisplayMode('table')}
+                className={`p-1.5 rounded text-xs font-medium transition-colors cursor-pointer ${
+                  displayMode === 'table' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Telemetry Table View"
+              >
+                <TableIcon className="w-4 h-4" />
+              </button>
+            </div>
+
             <button
               onClick={() => setAutoSimulate(!autoSimulate)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
@@ -173,7 +211,7 @@ export const BinsPage: React.FC = () => {
               }`}
             >
               {autoSimulate ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-              {autoSimulate ? 'Auto-Simulate (8s)' : 'Auto-Simulate'}
+              {autoSimulate ? 'Auto (8s)' : 'Auto'}
             </button>
 
             <button
@@ -272,16 +310,104 @@ export const BinsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Dustbin Grid */}
+        {/* Display Views */}
         {filteredBins.length === 0 ? (
           <div className="p-10 text-center rounded-xl bg-slate-900 border border-slate-800 text-slate-400 text-xs">
             No dustbins match the current filter criteria.
           </div>
-        ) : (
+        ) : displayMode === 'cards' ? (
+          /* Card View with Chamber Graphic & Cam toggle */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredBins.map((bin) => (
               <BinCard key={bin.id} bin={bin} onCollect={handleCollectSingle} />
             ))}
+          </div>
+        ) : displayMode === 'camera_grid' ? (
+          /* Dedicated Visual Camera Snapshot Grid */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredBins.map((bin) => {
+              const config = getStatusConfig(bin.fill_percentage);
+              return (
+                <div key={bin.id} className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-xs text-white truncate">{bin.bin_name}</span>
+                      <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${config.badgeBg} ${config.badgeText} ${config.badgeBorder}`}>
+                        {bin.fill_percentage}%
+                      </span>
+                    </div>
+                    <CampusZoneVisual location={bin.location} fillPercentage={bin.fill_percentage} height={120} />
+                  </div>
+                  <div className="flex items-center justify-between pt-2.5 mt-2 border-t border-slate-800 text-[11px] font-mono text-slate-400">
+                    <span>{bin.location}</span>
+                    <button
+                      onClick={() => handleCollectSingle(bin.id)}
+                      disabled={bin.fill_percentage === 0}
+                      className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-sans font-medium transition-colors disabled:opacity-40"
+                    >
+                      Empty (0%)
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* High-Density Spreadsheet Table View */
+          <div className="rounded-xl bg-slate-900 border border-slate-800 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider bg-slate-950/60">
+                    <th className="py-2.5 px-3">Dustbin</th>
+                    <th className="py-2.5 px-3">Campus Location</th>
+                    <th className="py-2.5 px-3">Coordinates</th>
+                    <th className="py-2.5 px-3">Visual Status</th>
+                    <th className="py-2.5 px-3">Fill %</th>
+                    <th className="py-2.5 px-3">Capacity</th>
+                    <th className="py-2.5 px-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/50">
+                  {filteredBins.map((bin) => {
+                    const config = getStatusConfig(bin.fill_percentage);
+                    return (
+                      <tr key={bin.id} className="hover:bg-slate-800/20 transition-colors">
+                        <td className="py-2.5 px-3 font-medium text-white">{bin.bin_name}</td>
+                        <td className="py-2.5 px-3 text-slate-300">{bin.location}</td>
+                        <td className="py-2.5 px-3 font-mono text-slate-400 text-[11px]">
+                          ({bin.coord_x}, {bin.coord_y})
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded border ${config.badgeBg} ${config.badgeText} ${config.badgeBorder}`}>
+                            {bin.status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-white tabular-nums">
+                          {bin.fill_percentage}%
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-400 font-mono text-[11px]">
+                          {Math.round((bin.fill_percentage / 100) * 120)}L / 120L
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <button
+                            onClick={() => handleCollectSingle(bin.id)}
+                            disabled={bin.fill_percentage === 0}
+                            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                              bin.fill_percentage === 0
+                                ? 'bg-slate-800/40 text-slate-600 cursor-not-allowed'
+                                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                            }`}
+                          >
+                            Collect
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 

@@ -11,11 +11,16 @@ import {
   ArrowRight,
   Clock,
   CheckCircle2,
+  Layers,
+  Activity,
+  HardDrive,
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { DashboardLayout } from '../components/DashboardLayout.tsx';
 import { StatCard } from '../components/StatCard.tsx';
 import { BinData } from '../components/BinCard.tsx';
+import { SmartBinVisual } from '../components/visuals/SmartBinVisual.tsx';
+import { CampusZoneVisual } from '../components/visuals/CampusZoneVisual.tsx';
 import api from '../services/api.ts';
 
 interface AnalyticsData {
@@ -34,6 +39,7 @@ export const DashboardPage: React.FC = () => {
   const [recentLogs, setRecentLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [selectedPreviewBin, setSelectedPreviewBin] = useState<BinData | null>(null);
   const navigate = useNavigate();
 
   const fetchDashboardData = async () => {
@@ -42,6 +48,11 @@ export const DashboardPage: React.FC = () => {
       setBins(res.data.bins);
       setAnalytics(res.data.analytics);
       setRecentLogs(res.data.recentLogs || []);
+      if (res.data.bins.length > 0 && !selectedPreviewBin) {
+        // Select the highest fill bin by default for preview
+        const highest = [...res.data.bins].sort((a, b) => b.fill_percentage - a.fill_percentage)[0];
+        setSelectedPreviewBin(highest);
+      }
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
     } finally {
@@ -63,6 +74,10 @@ export const DashboardPage: React.FC = () => {
       const res = await api.post('/bins/simulate');
       setBins(res.data.bins);
       setAnalytics(res.data.analytics);
+      if (res.data.bins.length > 0) {
+        const highest = [...res.data.bins].sort((a: BinData, b: BinData) => b.fill_percentage - a.fill_percentage)[0];
+        setSelectedPreviewBin(highest);
+      }
     } catch (err) {
       console.error('Simulation failed:', err);
     } finally {
@@ -78,6 +93,7 @@ export const DashboardPage: React.FC = () => {
   ];
 
   const urgentBins = bins.filter((b) => b.fill_percentage >= 80);
+  const totalVolumeLiters = bins.reduce((acc, b) => acc + Math.round((b.fill_percentage / 100) * 120), 0);
 
   return (
     <DashboardLayout onSimulate={handleSimulate} isSimulating={isSimulating}>
@@ -86,10 +102,10 @@ export const DashboardPage: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-white tracking-tight">
-              Dashboard Overview
+              Facility Waste Monitoring Console
             </h1>
             <p className="text-xs text-slate-400 mt-0.5">
-              Campus waste telemetry, status metrics, and nearest-neighbor collection routing.
+              Live IoT optical telemetry, fill levels, and automated route dispatch.
             </p>
           </div>
 
@@ -121,10 +137,10 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div>
                 <h4 className="font-semibold text-sm text-white">
-                  Collection Required ({urgentBins.length} bins flagged)
+                  Collection Required: {urgentBins.length} dustbin(s) flagged
                 </h4>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  {analytics?.overflowRiskCount || 0} bin(s) at 100% overflow risk, and {analytics?.collectionRequiredCount || 0} bin(s) reaching 80% threshold.
+                  {analytics?.overflowRiskCount || 0} unit(s) at 100% overflow risk, and {analytics?.collectionRequiredCount || 0} unit(s) exceeding 80% threshold.
                 </p>
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {urgentBins.slice(0, 4).map((b) => (
@@ -159,13 +175,13 @@ export const DashboardPage: React.FC = () => {
           <StatCard
             title="Total Dustbins"
             value={analytics?.totalBins || 0}
-            subtitle="Campus IoT sensor nodes"
+            subtitle="Campus IoT sensor network"
             icon={Trash2}
           />
           <StatCard
-            title="Average Fill Level"
+            title="Average Capacity"
             value={`${analytics?.averageFill || 0}%`}
-            subtitle="Campus-wide aggregate"
+            subtitle="Aggregate fill across fleet"
             icon={Percent}
             color={
               (analytics?.averageFill || 0) >= 80
@@ -176,21 +192,107 @@ export const DashboardPage: React.FC = () => {
             }
           />
           <StatCard
-            title="Collection Alerts"
-            value={analytics?.collectionRequiredCount || 0}
-            subtitle="Fill between 80% - 99%"
-            icon={AlertTriangle}
-            color="orange"
-            alertBadge={analytics?.collectionRequiredCount ? 'High' : undefined}
+            title="Total Waste Stored"
+            value={`${totalVolumeLiters}L`}
+            subtitle="Calculated from 120L capacity/bin"
+            icon={HardDrive}
+            color="default"
           />
           <StatCard
-            title="Overflow Hazard"
-            value={analytics?.overflowRiskCount || 0}
-            subtitle="Bins at 100% capacity"
-            icon={AlertOctagon}
-            color="rose"
-            alertBadge={analytics?.overflowRiskCount ? 'Urgent' : undefined}
+            title="Collection Dispatch"
+            value={analytics?.totalNeedingCollection || 0}
+            subtitle={`${analytics?.overflowRiskCount || 0} overflow · ${analytics?.collectionRequiredCount || 0} required`}
+            icon={AlertTriangle}
+            color={(analytics?.totalNeedingCollection || 0) > 0 ? 'orange' : 'emerald'}
+            alertBadge={analytics?.totalNeedingCollection ? 'Active' : undefined}
           />
+        </div>
+
+        {/* Visual Inspection Spotlight Section */}
+        <div className="rounded-xl bg-slate-900 border border-slate-800 p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <h3 className="font-semibold text-sm text-white flex items-center gap-2">
+                <Activity className="w-4 h-4 text-slate-300" />
+                Live Sensor Node Inspection
+              </h3>
+              <p className="text-xs text-slate-400">
+                Cross-section hardware chamber view and camera zone telemetry
+              </p>
+            </div>
+
+            {/* Quick bin selector dropdown */}
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-400">Inspect Node:</span>
+              <select
+                value={selectedPreviewBin?.id || ''}
+                onChange={(e) => {
+                  const b = bins.find((item) => item.id === e.target.value);
+                  if (b) setSelectedPreviewBin(b);
+                }}
+                className="bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-white focus:outline-none font-mono"
+              >
+                {bins.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.bin_name} ({b.fill_percentage}%)
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {selectedPreviewBin && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-stretch">
+              {/* Visual Smart Bin Chamber Graphic */}
+              <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 flex flex-col items-center justify-center text-center">
+                <span className="text-[11px] text-slate-400 font-mono mb-2">
+                  CHAMBER COMPACTOR STATUS
+                </span>
+                <SmartBinVisual fillPercentage={selectedPreviewBin.fill_percentage} size="lg" />
+                <div className="mt-3 flex items-center gap-3 text-xs font-mono text-slate-400">
+                  <span>Fill: <strong className="text-white">{selectedPreviewBin.fill_percentage}%</strong></span>
+                  <span>·</span>
+                  <span>Volume: <strong className="text-white">{Math.round((selectedPreviewBin.fill_percentage / 100) * 120)}L</strong></span>
+                </div>
+              </div>
+
+              {/* Architectural CAD Zone Camera View */}
+              <div className="md:col-span-2 p-4 rounded-lg bg-slate-950 border border-slate-800 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-2">
+                    <span className="font-semibold text-white">{selectedPreviewBin.bin_name}</span>
+                    <span className="font-mono text-slate-400 text-[11px]">
+                      Location: {selectedPreviewBin.location}
+                    </span>
+                  </div>
+                  <CampusZoneVisual location={selectedPreviewBin.location} fillPercentage={selectedPreviewBin.fill_percentage} height={120} />
+                </div>
+
+                <div className="pt-3 mt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-3 text-slate-400 font-mono text-[11px]">
+                    <span>Coordinates: ({selectedPreviewBin.coord_x}, {selectedPreviewBin.coord_y})</span>
+                    <span>·</span>
+                    <span>Status: <strong className="text-slate-200">{selectedPreviewBin.status}</strong></span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => navigate('/route-optimization')}
+                      className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-colors cursor-pointer"
+                    >
+                      Route Map
+                    </button>
+                    <button
+                      onClick={() => navigate('/bins')}
+                      className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-colors cursor-pointer"
+                    >
+                      Fleet Details
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Charts & AI Operational Summary */}
@@ -207,7 +309,7 @@ export const DashboardPage: React.FC = () => {
               </span>
             </div>
 
-            <div className="h-60 w-full">
+            <div className="h-56 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 15 }}>
                   <XAxis
