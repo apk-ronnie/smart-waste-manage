@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import { Bin } from './db.ts';
+import type { Bin } from './db.ts';
 
 export interface AiPriorityItem {
   bin_name: string;

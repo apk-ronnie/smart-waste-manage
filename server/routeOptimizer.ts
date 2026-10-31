@@ -1,4 +1,4 @@
-import { Bin } from './db.ts';
+import type { Bin } from './db.ts';
 
 export interface RouteStep {
   stepNumber: number;

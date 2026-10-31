@@ -1,6 +1,6 @@
-import { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { db, User } from '../db.ts';
+import { db, type User } from '../db.ts';
 
 export const JWT_SECRET = process.env.JWT_SECRET || 'smart-waste-monitor-super-secret-jwt-key-2026';
 

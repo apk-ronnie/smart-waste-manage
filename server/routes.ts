@@ -1,13 +1,13 @@
-import { Router, Response } from 'express';
+import express, { type Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { db } from './db.ts';
-import { authenticateJWT, AuthRequest, JWT_SECRET } from './middleware/auth.ts';
+import { authenticateJWT, type AuthRequest, JWT_SECRET } from './middleware/auth.ts';
 import { validateBody, LoginSchema, CollectBinsSchema, CreateBinSchema } from './middleware/validate.ts';
 import { calculateNearestNeighborRoute } from './routeOptimizer.ts';
 import { generateWasteInsights } from './geminiService.ts';
 
-const router = Router();
+const router = express.Router();
 
 // ==================== AUTH ROUTES ====================
 
